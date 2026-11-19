@@ -8,20 +8,31 @@
 // Run it the way the grader does:
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 //
-// POST.json ships with a placeholder address; replace it with the real post
-// (https://x.com/<handle>/status/<id>) before submitting - the gate refuses
-// the placeholder on purpose.
+// POST.json must name the real post (https://x.com/<handle>/status/<id>):
+// the gate refuses a placeholder address, so the program checks the copied
+// file parses as JSON and carries a post URL before it exits.
 
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const POST_URL = /^https:\/\/(www\.|mobile\.)?(x\.com|twitter\.com)\/(\w+\/status\/\d+|i\/web\/status\/\d+)$/;
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
+const outPath = join(OUTPUT_DIR, 'POST.json');
 try {
-  copyFileSync(join(BOT_DIR, 'POST.json'), join(OUTPUT_DIR, 'POST.json'));
+  copyFileSync(join(BOT_DIR, 'POST.json'), outPath);
 } catch (err) {
   console.error(`POST.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
+  process.exit(1);
+}
+try {
+  const post = JSON.parse(readFileSync(outPath, 'utf8')) as { url?: unknown };
+  if (typeof post.url !== 'string' || !POST_URL.test(post.url)) {
+    throw new Error('POST.json has no X post URL');
+  }
+} catch (err) {
+  console.error(`POST.json failed validation: ${(err as Error).message}`);
   process.exit(1);
 }
